@@ -94,20 +94,99 @@ function suggestHooks(text, niche) {
   return Array.from(new Set(ranked)).slice(0, 6);
 }
 
-function rewriteCaption(text, niche) {
-  const lines = text.trim().split(/\n+/).slice(0, 6);
-  const hook = lines[0] || "";
-  const body = lines.slice(1).join("\n");
-  const nicheCTA = {
-    marketing: "Scrivi 'CHECKLIST' e ti mando il template.",
-    fitness: "Commenta 'ALLENAMENTO' e ti invio la scheda.",
-    finanza: "Scrivi 'RISPARMIO' per la guida gratuita.",
-    creator: "Commenta 'HOOK' e ti mando 10 idee.",
+function generateSlidePlan(niche, text, imagesCount) {
+  const baseLen = Math.max(5, Math.min(8, imagesCount || 7));
+  const ideasByNiche = {
+    marketing: [
+      "Prova sociale (numeri/risultati)",
+      "Mini-caso studio con 3 metriche",
+      "Framework (AIDA/PAS) con esempi reali",
+      "Errore comune e correzione step-by-step",
+      "CTA con lead magnet (checklist/template)",
+    ],
+    fitness: [
+      "Prima/dopo realistico con KPI (ripetizioni/pesi)",
+      "Tecnica corretta vs errore più comune",
+      "Schema allenamento 20' senza attrezzi",
+      "Nutrizione: 3 swap facili a basso costo",
+      "CTA con scheda gratuita",
+    ],
+    finanza: [
+      "Budget in 3 buste con percentuali",
+      "Interesse composto spiegato con grafico semplice",
+      "Checklist anti-debito in 5 step",
+      "Allocazione ETF esempio pratico",
+      "CTA guida risparmio",
+    ],
+    creator: [
+      "Gancio visivo forte (headline grande)",
+      "Angolo controintuitivo con esempio",
+      "Schema contenuti 5x5 (format x canale)",
+      "Processo: idea → bozza → post",
+      "CTA: DM per template",
+    ],
   };
 
-  return `HOOK: ${hook || "Fai questo per raddoppiare i risultati"}\n\n${body}\n\nSlide finale → CTA: ${
-    nicheCTA[niche] || nicheCTA.creator
-  }`.trim();
+  const items = ideasByNiche[niche] || ideasByNiche.creator;
+  const plan = [
+    "Slide 1: Hook enorme + promessa chiara",
+    ...items.slice(0, baseLen - 2).map((it, i) => `Slide ${i + 2}: ${it}`),
+    `Slide ${baseLen}: Riepilogo + CTA specifica`,
+  ];
+
+  // Estrarre qualche keyword dal testo per personalizzare
+  const kw = (text || "").toLowerCase().match(/[a-zà-ù]{4,}/gi) || [];
+  const topKw = Array.from(new Set(kw)).slice(0, 5).join(", ");
+
+  return { plan, topKw };
+}
+
+function rewriteCaption(text, niche, imagesCount) {
+  const lines = text.trim().split(/\n+/).filter(Boolean);
+  const rawHook = lines[0] || "Fai questo per raddoppiare i risultati";
+  const { plan, topKw } = generateSlidePlan(niche, text, imagesCount);
+
+  const nicheCTA = {
+    marketing: "Scrivi 'CHECKLIST' e ti mando il template + un esempio in Notion.",
+    fitness: "Commenta 'ALLENAMENTO' e ti invio la scheda + video forma corretta.",
+    finanza: "Scrivi 'RISPARMIO' e ricevi la guida + foglio di calcolo.",
+    creator: "Commenta 'HOOK' e ti mando 10 idee + template Canva.",
+  };
+
+  const angles = {
+    marketing: ["costo opportunità", "riduzione attrito", "prova sociale"],
+    fitness: ["consistenza > intensità", "progressive overload", "abitudini"],
+    finanza: ["interesse composto", "spese invisibili", "allocazione semplice"],
+    creator: ["pattern interrupt", "story utility", "documenta non creare"],
+  };
+
+  const promiseByNiche = {
+    marketing: "più lead qualificati senza aumentare il budget",
+    fitness: "migliorare performance e aderenza senza diete estreme",
+    finanza: "mettere da parte ogni mese con meno frizione mentale",
+    creator: "aumentare salvataggi e tempo di visualizzazione",
+  };
+
+  return (
+    `HOOK: ${rawHook}\n` +
+    `Promessa: ti mostro come ${promiseByNiche[niche] || promiseByNiche.creator}.\n\n` +
+    `Perché funziona: focus su ${angles[niche]?.[0]}, ${angles[niche]?.[1]} e ${angles[niche]?.[2]}.\n` +
+    (topKw ? `Parole chiave dal tuo testo: ${topKw}.\n\n` : "\n") +
+    `Piano slide (${plan.length}):\n- ` + plan.join("\n- ") +
+    `\n\nRiscrittura didascalia (compatibile IG):\n` +
+    `${rawHook}. In questo post vedrai un processo semplice per ${promiseByNiche[niche] || promiseByNiche.creator}. ` +
+    `Evitiamo errori comuni e ti lascio esempi pratici che puoi copiare oggi.\n\n` +
+    `Cosa impari in breve:\n` +
+    `• Framework facile da applicare\n` +
+    `• Esempio reale passo-passo\n` +
+    `• Mini-checklist da salvare\n\n` +
+    `CTA: ${nicheCTA[niche] || nicheCTA.creator}\n\n` +
+    `A/B test rapidi per il gancio (scegline 1):\n` +
+    `1) [Numero]+[risultato]: "7 modi per..."\n` +
+    `2) Controintuitivo: "Smetti di... fai questo"\n` +
+    `3) Tempo/risorsa: "In 10' senza..."\n` +
+    `Suggerimento visual: usa 1080×1350, contrasto alto, headline 5–7 parole.`
+  ).trim();
 }
 
 export default function AnalysisResults({ payload }) {
@@ -116,7 +195,7 @@ export default function AnalysisResults({ payload }) {
   const textScores = useMemo(() => scoreTextQuality(text), [text]);
   const imgInsights = useMemo(() => analyzeImages(images), [images]);
   const hooks = useMemo(() => suggestHooks(text, niche), [text, niche]);
-  const rewritten = useMemo(() => rewriteCaption(text, niche), [text, niche]);
+  const rewritten = useMemo(() => rewriteCaption(text, niche, images.length), [text, niche, images.length]);
   const [copied, setCopied] = useState(false);
 
   if (!text && (!images || images.length === 0)) {
@@ -151,7 +230,7 @@ export default function AnalysisResults({ payload }) {
             </div>
           </Card>
 
-          <Card title="Riscrittura pronta" icon={Lightbulb}>
+          <Card title="Riscrittura pronta (argomentata)" icon={Lightbulb}>
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs text-white/60">Ottimizzata per: {niche}</p>
               <button
