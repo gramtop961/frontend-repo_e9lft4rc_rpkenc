@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { BarChart2, Target, Lightbulb } from "lucide-react";
+import { useMemo, useState } from "react";
+import { BarChart2, Target, Lightbulb, Copy, CheckCircle2 } from "lucide-react";
 
 function scoreTextQuality(text) {
   const len = text.trim().length;
@@ -8,7 +8,12 @@ function scoreTextQuality(text) {
   const hasCTA = /(commenta|scrivi|manda|clicca|salva|condividi|dimmi|link in bio|cta)/i.test(text);
   const hasSpecificity = /(in \d+ giorni|in \d+h|step|checklist|template|framework|swipe|carousel)/i.test(text);
 
-  const hook = Math.min(100, Math.round((hasNumbers ? 20 : 0) + (hasSecondPerson ? 30 : 10) + (hasCTA ? 20 : 0) + (hasSpecificity ? 30 : 10)));
+  const hook = Math.min(
+    100,
+    Math.round(
+      (hasNumbers ? 20 : 0) + (hasSecondPerson ? 30 : 10) + (hasCTA ? 20 : 0) + (hasSpecificity ? 30 : 10)
+    )
+  );
   const clarity = Math.min(100, Math.round(40 + Math.min(60, 120 - Math.abs(120 - len / 5))));
   const specificity = Math.min(100, Math.round((hasSpecificity ? 70 : 30) + (hasNumbers ? 15 : 0)));
   const shareability = Math.min(100, Math.round((hasCTA ? 50 : 25) + (len > 120 ? 15 : 5)));
@@ -17,19 +22,18 @@ function scoreTextQuality(text) {
 }
 
 function analyzeImages(images = []) {
-  // Basic heuristics: aspect ratio consistency, brightness approximation via file size, slide count
   const count = images.length;
-  if (!count) return { count: 0, aspectConsistency: 0, tips: ["Aggiungi almeno 3–6 slide per un carosello efficace."] };
+  if (!count)
+    return { count: 0, aspectConsistency: 0, tips: ["Aggiungi almeno 3–6 slide per un carosello efficace."] };
 
   const metas = images.map((f) => ({
     sizeKB: Math.round(f.size / 1024),
-    // Without decoding pixels, infer aspect by filename hints or size ratio fallback
     name: f.name.toLowerCase(),
   }));
 
   const isStoryLike = metas.some((m) => m.name.includes("1080x1920") || m.name.includes("9x16"));
   const isSquareLike = metas.some((m) => m.name.includes("1080x1080") || m.name.includes("1x1"));
-  const aspectConsistency = isStoryLike && isSquareLike ? 40 : 85; // mixed formats penalized
+  const aspectConsistency = isStoryLike && isSquareLike ? 40 : 85;
 
   const sizeOk = metas.every((m) => m.sizeKB >= 100 && m.sizeKB <= 3000);
 
@@ -76,10 +80,14 @@ function suggestHooks(text, niche) {
 
   const bank = [...base, ...(map[niche] || map.creator)];
 
-  // Re-rank based on text keywords
   const kw = text.toLowerCase();
   const ranked = bank
-    .map((h) => ({ h, score: (kw.includes("errore") && h.includes("errori")) ? 2 : 0 + (kw.includes("cta") && h.toLowerCase().includes("cta")) ? 2 : 0 }))
+    .map((h) => ({
+      h,
+      score:
+        (kw.includes("errore") && h.includes("errori") ? 2 : 0) +
+        (kw.includes("cta") && h.toLowerCase().includes("cta") ? 2 : 0),
+    }))
     .sort((a, b) => b.score - a.score)
     .map((x) => x.h);
 
@@ -97,7 +105,9 @@ function rewriteCaption(text, niche) {
     creator: "Commenta 'HOOK' e ti mando 10 idee.",
   };
 
-  return `HOOK: ${hook || "Fai questo per raddoppiare i risultati"}\n\n${body}\n\nSlide finale → CTA: ${nicheCTA[niche] || nicheCTA.creator}`.trim();
+  return `HOOK: ${hook || "Fai questo per raddoppiare i risultati"}\n\n${body}\n\nSlide finale → CTA: ${
+    nicheCTA[niche] || nicheCTA.creator
+  }`.trim();
 }
 
 export default function AnalysisResults({ payload }) {
@@ -107,10 +117,21 @@ export default function AnalysisResults({ payload }) {
   const imgInsights = useMemo(() => analyzeImages(images), [images]);
   const hooks = useMemo(() => suggestHooks(text, niche), [text, niche]);
   const rewritten = useMemo(() => rewriteCaption(text, niche), [text, niche]);
+  const [copied, setCopied] = useState(false);
 
   if (!text && (!images || images.length === 0)) {
     return null;
   }
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(rewritten);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (e) {
+      console.warn("Clipboard blocked", e);
+    }
+  };
 
   return (
     <section className="max-w-5xl mx-auto px-6 mt-8">
@@ -131,6 +152,20 @@ export default function AnalysisResults({ payload }) {
           </Card>
 
           <Card title="Riscrittura pronta" icon={Lightbulb}>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-white/60">Ottimizzata per: {niche}</p>
+              <button
+                onClick={copy}
+                className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors ${
+                  copied
+                    ? "border-emerald-500/40 bg-emerald-500/20 text-emerald-200"
+                    : "border-white/10 bg-white/5 hover:bg-white/10 text-white/80"
+                }`}
+              >
+                {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? "Copiato" : "Copia"}
+              </button>
+            </div>
             <pre className="whitespace-pre-wrap text-sm text-white/90 leading-relaxed">{rewritten}</pre>
           </Card>
         </div>
