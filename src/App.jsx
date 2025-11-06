@@ -2,24 +2,24 @@ import { useState } from "react";
 import Header from "./components/Header";
 import ContentInput from "./components/ContentInput";
 import AnalysisResults from "./components/AnalysisResults";
-import HowItWorks from "./components/HowItWorks";
+import NicheSelector from "./components/NicheSelector";
 
-function App() {
-  const [text, setText] = useState("");
+export default function App() {
+  const [payload, setPayload] = useState({ text: "", images: [], niche: "creator" });
+
+  const handleAnalyze = ({ text, images }) => {
+    setPayload((p) => ({ ...p, text, images }));
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-fuchsia-50 via-white to-blue-50">
-      <div className="px-4 md:px-6">
-        <Header />
-        <ContentInput onAnalyze={(t) => setText(t)} />
-        <AnalysisResults text={text} />
-        <HowItWorks />
-        <footer className="w-full max-w-5xl mx-auto py-10 text-center text-sm text-gray-500">
-          Creato per aiutarti a creare contenuti che meritano di essere condivisi.
-        </footer>
-      </div>
+    <div className="min-h-screen bg-slate-950 text-white">
+      <Header />
+      <NicheSelector value={payload.niche} onChange={(n) => setPayload((p) => ({ ...p, niche: n }))} />
+      <ContentInput onAnalyze={handleAnalyze} />
+      <AnalysisResults payload={payload} />
+      <footer className="max-w-5xl mx-auto px-6 py-10 text-xs text-white/50">
+        Pro tip: punta su hook grandi, contrasto elevato e CTA chiara sull'ultima slide.
+      </footer>
     </div>
   );
 }
-
-export default App;

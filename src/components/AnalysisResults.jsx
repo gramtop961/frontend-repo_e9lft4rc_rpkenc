@@ -1,144 +1,189 @@
 import { useMemo } from "react";
-import { Star, Share2, Timer, ListChecks } from "lucide-react";
+import { BarChart2, Target, Lightbulb } from "lucide-react";
 
-function ScoreBar({ label, score, color }) {
-  const width = Math.min(100, Math.max(0, Math.round(score * 100)));
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between text-sm text-gray-600">
-        <span>{label}</span>
-        <span className="font-semibold text-gray-800">{width}%</span>
-      </div>
-      <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-        <div
-          className={`h-full ${color}`}
-          style={{ width: `${width}%` }}
-        />
-      </div>
-    </div>
-  );
+function scoreTextQuality(text) {
+  const len = text.trim().length;
+  const hasNumbers = /\d/.test(text);
+  const hasSecondPerson = /(tu|voi|you)\b/i.test(text);
+  const hasCTA = /(commenta|scrivi|manda|clicca|salva|condividi|dimmi|link in bio|cta)/i.test(text);
+  const hasSpecificity = /(in \d+ giorni|in \d+h|step|checklist|template|framework|swipe|carousel)/i.test(text);
+
+  const hook = Math.min(100, Math.round((hasNumbers ? 20 : 0) + (hasSecondPerson ? 30 : 10) + (hasCTA ? 20 : 0) + (hasSpecificity ? 30 : 10)));
+  const clarity = Math.min(100, Math.round(40 + Math.min(60, 120 - Math.abs(120 - len / 5))));
+  const specificity = Math.min(100, Math.round((hasSpecificity ? 70 : 30) + (hasNumbers ? 15 : 0)));
+  const shareability = Math.min(100, Math.round((hasCTA ? 50 : 25) + (len > 120 ? 15 : 5)));
+
+  return { hook, clarity, specificity, shareability };
 }
 
-export default function AnalysisResults({ text }) {
-  const analysis = useMemo(() => analyzeText(text), [text]);
+function analyzeImages(images = []) {
+  // Basic heuristics: aspect ratio consistency, brightness approximation via file size, slide count
+  const count = images.length;
+  if (!count) return { count: 0, aspectConsistency: 0, tips: ["Aggiungi almeno 3–6 slide per un carosello efficace."] };
 
-  if (!text?.trim()) return null;
+  const metas = images.map((f) => ({
+    sizeKB: Math.round(f.size / 1024),
+    // Without decoding pixels, infer aspect by filename hints or size ratio fallback
+    name: f.name.toLowerCase(),
+  }));
 
-  return (
-    <div className="w-full max-w-5xl mx-auto mt-6 space-y-6">
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="bg-white/80 backdrop-blur border border-gray-200 rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-3 text-fuchsia-700 font-semibold">
-            <Star className="h-4 w-4" /> Punteggi principali
-          </div>
-          <div className="space-y-3">
-            <ScoreBar label="Hook iniziale" score={analysis.hookScore} color="bg-fuchsia-500" />
-            <ScoreBar label="Chiarezza" score={analysis.clarityScore} color="bg-blue-500" />
-            <ScoreBar label="Specificità" score={analysis.specificityScore} color="bg-emerald-500" />
-            <ScoreBar label="Shareability" score={analysis.shareScore} color="bg-orange-500" />
-          </div>
-        </div>
+  const isStoryLike = metas.some((m) => m.name.includes("1080x1920") || m.name.includes("9x16"));
+  const isSquareLike = metas.some((m) => m.name.includes("1080x1080") || m.name.includes("1x1"));
+  const aspectConsistency = isStoryLike && isSquareLike ? 40 : 85; // mixed formats penalized
 
-        <div className="bg-white/80 backdrop-blur border border-gray-200 rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-3 text-fuchsia-700 font-semibold">
-            <Share2 className="h-4 w-4" /> Suggerimenti rapidi
-          </div>
-          <ul className="list-disc pl-5 space-y-2 text-gray-700">
-            {analysis.tips.map((t, i) => (
-              <li key={i}>{t}</li>
-            ))}
-          </ul>
-        </div>
-      </div>
-
-      <div className="bg-white/80 backdrop-blur border border-gray-200 rounded-xl p-5">
-        <div className="flex items-center gap-2 mb-3 text-fuchsia-700 font-semibold">
-          <ListChecks className="h-4 w-4" /> Versione riscritta (più virale)
-        </div>
-        <p className="text-gray-800 leading-relaxed whitespace-pre-line">{analysis.rewrite}</p>
-      </div>
-
-      <div className="bg-white/60 backdrop-blur border border-gray-200 rounded-xl p-5 text-sm text-gray-600">
-        <div className="flex items-center gap-2 mb-2">
-          <Timer className="h-4 w-4" />
-          Analisi locale basata su euristiche semplici. Per insight avanzati, collega un modello nel backend.
-        </div>
-        <p>
-          Suggerimento: usa frasi corte, numeri specifici, CTA chiara e struttura a elenco per carousels.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function analyzeText(text) {
-  const t = text.trim();
-  const sentences = t.split(/[.!?\n]+/).filter(Boolean);
-  const words = t.split(/\s+/).filter(Boolean);
-  const length = words.length;
-
-  const hasNumber = /\b\d+[.,]?\d*\b/.test(t);
-  const hasYou = /(tu|te|ti|voi|your|you)/i.test(t);
-  const hasCTA = /(seguimi|salva|condividi|iscriviti|link in bio|commenta|scrivimi|dm|scorri|swipe|share|save)/i.test(t);
-  const hasHook = /(nessuno te lo dice|se|3 cose|errore|trucco|non fare|ecco|come|perch[eé]|prima|dopo|in \d+|in meno di|scopri)/i.test(t.slice(0, 120));
-
-  const hookScore = scoreNorm(hasHook ? 0.8 : 0.35 + Math.min(0.45, length / 200));
-  const clarityScore = scoreNorm(1 - Math.min(0.6, avgSentenceLength(words, sentences) / 28));
-  const specificityScore = scoreNorm((hasNumber ? 0.5 : 0.2) + Math.min(0.5, uniqueRatio(words)));
-  const shareScore = scoreNorm((hasCTA ? 0.4 : 0.2) + (hasYou ? 0.2 : 0) + (hasHook ? 0.2 : 0));
+  const sizeOk = metas.every((m) => m.sizeKB >= 100 && m.sizeKB <= 3000);
 
   const tips = [];
-  if (!hasHook) tips.push("Apri con un hook forte: numero specifico, promessa chiara o curiosità.");
-  if (!hasNumber) tips.push("Aggiungi numeri o percentuali: aumentano credibilità e memoria.");
-  if (avgSentenceLength(words, sentences) > 22) tips.push("Accorcia le frasi per migliorare la leggibilità nei Reels.");
-  if (!hasCTA) tips.push("Chiudi con una CTA esplicita: 'Salva e condividi con un amico'.");
-  if (!hasYou) tips.push("Parla direttamente alla persona: usa 'tu' o 'ti'.");
-  if (tips.length === 0) tips.push("Ottimo lavoro! Raffina il ritmo con una pausa dopo l'hook e usa emoji mirate.");
+  if (count < 3) tips.push("Usa 5–8 slide per aumentare il tempo di permanenza e salvataggi.");
+  if (aspectConsistency < 60) tips.push("Mantieni un formato coerente (1080x1350 o 1080x1080) per tutto il carosello.");
+  if (!sizeOk) tips.push("Ottimizza il peso delle immagini per evitare compressioni aggressive.");
+  tips.push("Prima slide = hook grande e leggibile. Ultima slide = CTA chiara.");
 
-  const rewrite = rewriteText(t);
-
-  return { hookScore, clarityScore, specificityScore, shareScore, tips, rewrite };
+  return { count, aspectConsistency, tips };
 }
 
-function avgSentenceLength(words, sentences) {
-  if (sentences.length === 0) return words.length;
-  return words.length / sentences.length;
+function suggestHooks(text, niche) {
+  const base = [
+    "Il trucco che nessuno ti dice per...",
+    "3 errori che ti stanno costando...",
+    "Fai questo per raddoppiare...",
+    "La checklist che uso per...",
+    "Smetti di fare X. Prova questo invece.",
+  ];
+
+  const map = {
+    marketing: [
+      "7 hook che trasformano curiosi in clienti",
+      "La formula AIDA per Reels che vendono",
+      "Come scrivere CTA che fanno cliccare",
+    ],
+    fitness: [
+      "Allenati 20' così e bruci il doppio",
+      "3 errori che bloccano i tuoi progressi",
+      "Meal prep semplice: schema in 5 step",
+    ],
+    finanza: [
+      "Il metodo in 3 buste per risparmiare",
+      "Come investire 200€ al mese senza ansia",
+      "Evita queste trappole con le carte di credito",
+    ],
+    creator: [
+      "Hook copiabili per far salvare i tuoi post",
+      "Template di carousel ad alto retention",
+      "Trasforma un'idea in 5 post in 10'",
+    ],
+  };
+
+  const bank = [...base, ...(map[niche] || map.creator)];
+
+  // Re-rank based on text keywords
+  const kw = text.toLowerCase();
+  const ranked = bank
+    .map((h) => ({ h, score: (kw.includes("errore") && h.includes("errori")) ? 2 : 0 + (kw.includes("cta") && h.toLowerCase().includes("cta")) ? 2 : 0 }))
+    .sort((a, b) => b.score - a.score)
+    .map((x) => x.h);
+
+  return Array.from(new Set(ranked)).slice(0, 6);
 }
 
-function uniqueRatio(words) {
-  const set = new Set(words.map((w) => w.toLowerCase()))
-  return set.size / Math.max(1, words.length);
+function rewriteCaption(text, niche) {
+  const lines = text.trim().split(/\n+/).slice(0, 6);
+  const hook = lines[0] || "";
+  const body = lines.slice(1).join("\n");
+  const nicheCTA = {
+    marketing: "Scrivi 'CHECKLIST' e ti mando il template.",
+    fitness: "Commenta 'ALLENAMENTO' e ti invio la scheda.",
+    finanza: "Scrivi 'RISPARMIO' per la guida gratuita.",
+    creator: "Commenta 'HOOK' e ti mando 10 idee.",
+  };
+
+  return `HOOK: ${hook || "Fai questo per raddoppiare i risultati"}\n\n${body}\n\nSlide finale → CTA: ${nicheCTA[niche] || nicheCTA.creator}`.trim();
 }
 
-function scoreNorm(x) {
-  return Math.max(0, Math.min(1, x));
-}
+export default function AnalysisResults({ payload }) {
+  const { text = "", images = [], niche = "creator" } = payload || {};
 
-function rewriteText(text) {
-  // Simple rewrite: punchy hook + bullets + CTA
-  const base = text.replace(/\s+/g, " ").trim();
-  const keyBenefit = base.match(/(risparmi|guadagni|impari|eviti|scopri|cresci|vendite|clienti)/i)?.[0] ?? "risultati concreti";
+  const textScores = useMemo(() => scoreTextQuality(text), [text]);
+  const imgInsights = useMemo(() => analyzeImages(images), [images]);
+  const hooks = useMemo(() => suggestHooks(text, niche), [text, niche]);
+  const rewritten = useMemo(() => rewriteCaption(text, niche), [text, niche]);
 
-  const bullets = extractBullets(base);
-  const bulletBlock = bullets.length
-    ? bullets.map((b, i) => `• ${b}`).join("\n")
-    : [
-        "• Step 1: azione semplice e chiara",
-        "• Step 2: esempio concreto",
-        "• Step 3: risultato misurabile",
-      ].join("\n");
+  if (!text && (!images || images.length === 0)) {
+    return null;
+  }
 
   return (
-    `Hook: In 30 secondi ti mostro come ottenere ${keyBenefit} — senza trucchi.` +
-    "\n\n" +
-    bulletBlock +
-    "\n\n" +
-    "Se ti è utile: salva il post e condividilo a chi sta lavorando su questo."
+    <section className="max-w-5xl mx-auto px-6 mt-8">
+      <div className="grid md:grid-cols-3 gap-6">
+        <div className="md:col-span-2 space-y-4">
+          <Card title="Punteggi testo" icon={BarChart2}>
+            <Scores scores={textScores} />
+          </Card>
+
+          <Card title="Suggerimenti hook per la nicchia" icon={Target}>
+            <div className="grid sm:grid-cols-2 gap-2">
+              {hooks.map((h, i) => (
+                <div key={i} className="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/90">
+                  {h}
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card title="Riscrittura pronta" icon={Lightbulb}>
+            <pre className="whitespace-pre-wrap text-sm text-white/90 leading-relaxed">{rewritten}</pre>
+          </Card>
+        </div>
+
+        <div className="space-y-4">
+          <Card title="Analisi carosello" icon={BarChart2}>
+            <ul className="list-disc pl-5 text-sm text-white/80 space-y-1">
+              <li>Slide: {imgInsights.count}</li>
+              <li>Coerenza formati: {imgInsights.aspectConsistency}%</li>
+              {imgInsights.tips.map((t, i) => (
+                <li key={i}>{t}</li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+      </div>
+    </section>
   );
 }
 
-function extractBullets(text) {
-  const m = text.match(/(?:\d+\)|\-\s|•\s)([^\n]+)/g);
-  if (!m) return [];
-  return m.map((s) => s.replace(/^(\d+\)|\-|•)\s*/, "").trim()).slice(0, 5);
+function Card({ title, icon: Icon, children }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+      <div className="flex items-center gap-2 mb-3 text-white/90">
+        <Icon className="h-4 w-4" />
+        <h3 className="text-sm font-medium">{title}</h3>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Scores({ scores }) {
+  const items = [
+    { k: "Hook", v: scores.hook, c: "bg-pink-500" },
+    { k: "Chiarezza", v: scores.clarity, c: "bg-indigo-500" },
+    { k: "Specificità", v: scores.specificity, c: "bg-emerald-500" },
+    { k: "Shareability", v: scores.shareability, c: "bg-amber-500" },
+  ];
+
+  return (
+    <div className="space-y-3">
+      {items.map((it) => (
+        <div key={it.k}>
+          <div className="flex justify-between text-xs text-white/70 mb-1">
+            <span>{it.k}</span>
+            <span>{it.v}%</span>
+          </div>
+          <div className="h-2 rounded bg-white/10 overflow-hidden">
+            <div className={`h-full ${it.c}`} style={{ width: `${it.v}%` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
